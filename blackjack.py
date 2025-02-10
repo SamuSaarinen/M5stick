@@ -1,5 +1,5 @@
 import random
-import littleFS as lv
+import LittleFS as lv
 import hardware
 
 # Initialize display

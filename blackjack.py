@@ -1,7 +1,11 @@
 import random
-from m5stack import *
-from m5ui import *
-from uiflow import *
+import littleFS as lv
+import hardware
+
+# Initialize display
+lv.init()
+display = hardware.display()
+scr = lv.obj()
 
 def deal_card():
     return random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11])
@@ -14,27 +18,28 @@ def calculate_score(cards):
         score = sum(cards)
     return score
 
-def display_hand(player_cards, dealer_cards, message):
-    lcd.clear()
-    lcd.print("Blackjack", 10, 10, 0xffffff)
-    lcd.print(f"Player: {player_cards} (Score: {calculate_score(player_cards)})", 10, 40, 0xff0000)
-    lcd.print(f"Dealer: {dealer_cards} (Score: {calculate_score(dealer_cards)})", 10, 70, 0x00ff00)
-    lcd.print(message, 10, 100, 0xffff00)
+def update_display(player_cards, dealer_cards, message):
+    scr.clean()
+    label = lv.label(scr)
+    label.set_text(f"Player: {player_cards} (Score: {calculate_score(player_cards)})\n"
+                   f"Dealer: {dealer_cards} (Score: {calculate_score(dealer_cards)})\n"
+                   f"{message}")
+    label.align(lv.ALIGN.CENTER, 0, 0)
+    display.load_scr(scr)
 
 def blackjack():
     player_cards = [deal_card(), deal_card()]
     dealer_cards = [deal_card(), deal_card()]
+    update_display(player_cards, dealer_cards, "Press BtnA to Hit, BtnB to Stand")
     
     while calculate_score(player_cards) < 21:
-        display_hand(player_cards, dealer_cards, "Press BtnA to Hit, BtnB to Stand")
-        while True:
-            if btnA.wasPressed():
-                player_cards.append(deal_card())
-                break
-            if btnB.wasPressed():
-                while calculate_score(dealer_cards) < 17:
-                    dealer_cards.append(deal_card())
-                break
+        if hardware.BtnA.was_pressed():
+            player_cards.append(deal_card())
+            update_display(player_cards, dealer_cards, "Press BtnA to Hit, BtnB to Stand")
+        elif hardware.BtnB.was_pressed():
+            while calculate_score(dealer_cards) < 17:
+                dealer_cards.append(deal_card())
+            break
     
     player_score = calculate_score(player_cards)
     dealer_score = calculate_score(dealer_cards)
@@ -48,9 +53,8 @@ def blackjack():
     else:
         message = "It's a tie!"
     
-    display_hand(player_cards, dealer_cards, message)
-    wait(5)
-    lcd.clear()
+    update_display(player_cards, dealer_cards, message)
+    hardware.sleep(5)
 
 while True:
     blackjack()

